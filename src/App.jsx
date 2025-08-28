@@ -3,7 +3,7 @@ import { format, eachDayOfInterval, isFriday, isSaturday } from "date-fns";
 import { Calendar } from "react-date-range";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
-import { HebrewCalendar } from "@hebcal/core";
+import { HebrewCalendar, flags } from "@hebcal/core";
 
 const WORKDAY = "💼 עבודה";
 const WEEKEND = "🏖️ סוף שבוע";
@@ -14,15 +14,22 @@ export default function App() {
   const [endDate, setEndDate] = useState(null);
   const [showCalendar, setShowCalendar] = useState(false);
 
+  // Holidays that are actually days off in Israel
   const holidays = useMemo(() => {
     const h = HebrewCalendar.calendar({
       year: new Date().getFullYear(),
       isHebrewYear: false,
-      diaspora: true,
+      diaspora: false, // Israel minhag
       candlelighting: false,
       sedrot: false,
     });
-    return h.reduce((acc, holiday) => {
+
+    // Keep only Yom Tov + official modern holidays (e.g. Independence Day)
+    const daysOff = h.filter(
+      (ev) => ev.getFlags() & (flags.CHAG | flags.MODERN_HOLIDAY)
+    );
+
+    return daysOff.reduce((acc, holiday) => {
       const dateStr = format(holiday.getDate().greg(), "yyyy-MM-dd");
       acc[dateStr] = holiday.render("he");
       return acc;
@@ -103,7 +110,6 @@ export default function App() {
                 for (const day of days) {
                   const isHoliday = day.type.includes(HOLIDAY);
                   const isWeekend = day.type === WEEKEND;
-                  const isWorkday = day.type === WORKDAY;
 
                   const dayType = isHoliday
                     ? HOLIDAY
@@ -112,12 +118,22 @@ export default function App() {
                     : WORKDAY;
 
                   if (!tempGroup) {
-                    tempGroup = { start: day.date, end: day.date, type: day.type, baseType: dayType };
+                    tempGroup = {
+                      start: day.date,
+                      end: day.date,
+                      type: day.type,
+                      baseType: dayType,
+                    };
                   } else if (tempGroup.baseType === dayType) {
                     tempGroup.end = day.date;
                   } else {
                     grouped.push({ ...tempGroup });
-                    tempGroup = { start: day.date, end: day.date, type: day.type, baseType: dayType };
+                    tempGroup = {
+                      start: day.date,
+                      end: day.date,
+                      type: day.type,
+                      baseType: dayType,
+                    };
                   }
                 }
 
@@ -129,9 +145,7 @@ export default function App() {
                     className="flex justify-between py-2 hover:bg-gray-50"
                   >
                     <span>
-                      {d.start !== d.end
-                        ? `${d.start} - ${d.end}`
-                        : d.start}
+                      {d.start !== d.end ? `${d.start} - ${d.end}` : d.start}
                     </span>
                     <span
                       className={
