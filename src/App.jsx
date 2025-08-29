@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { format, eachDayOfInterval, isFriday, isSaturday } from "date-fns";
-import { Calendar } from "react-date-range";
+import { DateRange } from "react-date-range";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import { HebrewCalendar, flags } from "@hebcal/core";
@@ -11,8 +11,15 @@ const WEEKEND = "🏖️ סוף שבוע";
 const HOLIDAY = "🕯️ חג";
 
 export default function App() {
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const [range, setRange] = useState([
+    {
+      startDate: new Date(),
+      endDate: tomorrow,
+      key: "selection",
+    },
+  ]);
   const [showCalendar, setShowCalendar] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [userType, setUserType] = useState(
@@ -22,6 +29,9 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("userType", userType);
   }, [userType]);
+
+  const startDate = range[0].startDate;
+  const endDate = range[0].endDate;
 
   const holidays = useMemo(() => {
     const h = HebrewCalendar.calendar({
@@ -34,7 +44,7 @@ export default function App() {
     });
 
     const SOLDIER_HOLIDAYS = {
-      "Purim": 1,
+      Purim: 1,
       "Erev Pesach": 1,
       "Pesach VI": 1,
       "Lag BaOmer": 1,
@@ -53,7 +63,8 @@ export default function App() {
 
     let SPECIAL_HOLIDAYS = {};
     if (userType === "soldier") SPECIAL_HOLIDAYS = SOLDIER_HOLIDAYS;
-    else if (userType === "kevah") SPECIAL_HOLIDAYS = { ...SOLDIER_HOLIDAYS, ...KEVAH_HOLIDAYS };
+    else if (userType === "kevah")
+      SPECIAL_HOLIDAYS = { ...SOLDIER_HOLIDAYS, ...KEVAH_HOLIDAYS };
 
     const NoVacationHolidays = [
       "Yom Yerushalayim",
@@ -74,11 +85,13 @@ export default function App() {
       "Ben-Gurion Day",
     ];
 
-    let daysOff = h.filter(
-      (ev) =>
-        (ev.getFlags() & (flags.CHAG | flags.MODERN_HOLIDAY)) ||
-        SPECIAL_HOLIDAYS[ev.desc]
-    ).filter((ev) => !NoVacationHolidays.includes(ev.desc));
+    let daysOff = h
+      .filter(
+        (ev) =>
+          (ev.getFlags() & (flags.CHAG | flags.MODERN_HOLIDAY)) ||
+          SPECIAL_HOLIDAYS[ev.desc]
+      )
+      .filter((ev) => !NoVacationHolidays.includes(ev.desc));
 
     return daysOff.reduce((acc, holiday) => {
       const dateStr = format(holiday.getDate().greg(), "yyyy-MM-dd");
@@ -97,7 +110,11 @@ export default function App() {
       let type = WORKDAY;
       if (isFriday(day) || isSaturday(day)) type = WEEKEND;
       if (holidays[dateStr]) type = `${HOLIDAY} ${holidays[dateStr].name}`;
-      return { date: format(day, "EEE dd/MM/yyyy"), type, holidayCost: holidays[dateStr]?.cost || 0 };
+      return {
+        date: format(day, "dd/MM/yyyy"),
+        type,
+        holidayCost: holidays[dateStr]?.cost || 0,
+      };
     });
   }, [startDate, endDate, holidays]);
 
@@ -143,38 +160,40 @@ export default function App() {
 
         {showCalendar && (
           <div className="mt-6 bg-white rounded-xl shadow-xl p-4">
-            <Calendar
-              date={startDate || new Date()}
-              onChange={(date) => {
-                if (!startDate || (startDate && endDate)) {
-                  setStartDate(date);
-                  setEndDate(null);
-                } else {
-                  if (date < startDate) {
-                    setEndDate(startDate);
-                    setStartDate(date);
-                  } else {
-                    setEndDate(date);
-                  }
-                  setShowCalendar(false);
-                }
-              }}
+            <DateRange
+              ranges={range}
+              onChange={(ranges) => setRange([ranges.selection])}
+              moveRangeOnFirstSelection={false}
+              editableDateInputs={true}
+              months={1}
+              direction="horizontal"
             />
           </div>
         )}
 
         {days.length > 0 && (
           <div className="mt-8 w-full max-w-lg bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-xl font-semibold mb-3">חישוב</h2>
-            <p className="mb-4 text-lg">
+            <h2 className="text-xl text-center font-semibold mb-3">חישוב</h2>
+            <p className="mb-4 text-center text-lg">
               ימי חופש דרושים:{" "}
               <span className="font-bold text-red-600">{vacationDays}</span>
-              {userType !== "citizen" && (
-                <span className="ml-2 text-sm text-gray-600">
-                  {userType === "soldier" ? "🪖 (חייל)" : "🪖 קבע"}
-                </span>
-              )}
             </p>
+
+            {/* Summary Cards */}
+            <div className="mt-6 grid grid-cols-3 pb-6 gap-4">
+              <div className="bg-gray-100 rounded-xl p-4 text-center shadow-md">
+                <div className="text-gray-700 font-bold">{WORKDAY}</div>
+                <div className="text-gray-700 text-lg">{vacationDays}</div>
+              </div>
+              <div className="bg-blue-100 rounded-xl p-4 text-center shadow-md">
+                <div className="text-blue-600 font-bold">{WEEKEND}</div>
+                <div className="text-blue-600 text-lg">{weekendDays}</div>
+              </div>
+              <div className="bg-green-100 rounded-xl p-4 text-center shadow-md">
+                <div className="text-green-600 font-bold">{HOLIDAY}</div>
+                <div className="text-green-600 text-lg">{holidayDays}</div>
+              </div>
+            </div>
 
             {/* Receipt */}
             <div className="border-t divide-y text-sm">
@@ -236,28 +255,14 @@ export default function App() {
                     >
                       {d.type}
                       {d.holidayCost > 0 && d.type.includes(HOLIDAY)
-                        ? ` (${d.holidayCost} ${getHolidayLabel(d.holidayCost)})`
+                        ? ` (${d.holidayCost} ${getHolidayLabel(
+                            d.holidayCost
+                          )})`
                         : ""}
                     </span>
                   </div>
                 ));
               })()}
-            </div>
-
-            {/* Summary Cards */}
-            <div className="mt-6 grid grid-cols-3 gap-4">
-              <div className="bg-gray-100 rounded-xl p-4 text-center shadow-md">
-                <div className="text-gray-700 font-bold">{WORKDAY}</div>
-                <div className="text-gray-700 text-lg">{vacationDays}</div>
-              </div>
-              <div className="bg-blue-100 rounded-xl p-4 text-center shadow-md">
-                <div className="text-blue-600 font-bold">{WEEKEND}</div>
-                <div className="text-blue-600 text-lg">{weekendDays}</div>
-              </div>
-              <div className="bg-green-100 rounded-xl p-4 text-center shadow-md">
-                <div className="text-green-600 font-bold">{HOLIDAY}</div>
-                <div className="text-green-600 text-lg">{holidayDays}</div>
-              </div>
             </div>
           </div>
         )}
