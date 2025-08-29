@@ -12,22 +12,47 @@ const HOLIDAY = "🕯️ חג";
 export default function App() {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(true);
 
   // Holidays that are actually days off in Israel
   const holidays = useMemo(() => {
     const h = HebrewCalendar.calendar({
       year: new Date().getFullYear(),
       isHebrewYear: false,
-      diaspora: false, // Israel minhag
       candlelighting: false,
       sedrot: false,
+      il: true,
+      locale: "he",
     });
 
     // Keep only Yom Tov + official modern holidays (e.g. Independence Day)
-    const daysOff = h.filter(
+    let daysOff = h.filter(
       (ev) => ev.getFlags() & (flags.CHAG | flags.MODERN_HOLIDAY)
     );
+
+    const NoVacationHolidays = [
+      "Yom Yerushalayim",
+      "Yom HaAliyah",
+      "Pesach II",
+      "Pesach VIII",
+      "Yom HaShoah",
+      "Yom HaZikaron",
+      "Shavuot II",
+      "Sukkot II",
+      "Sigd",
+      "Hebrew Language Day",
+      "Family Day",
+      "Herzl Day",
+      "Jabotinsky Day",
+      "Yom HaAliyah School Observance",
+      "Yitzhak Rabin Memorial Day",
+      "Ben-Gurion Day"
+    ]
+
+    daysOff = daysOff.filter(
+      (ev) => !NoVacationHolidays.includes(ev.desc)
+    );
+    console.log(daysOff.map(ev => `${ev.desc}`));
 
     return daysOff.reduce((acc, holiday) => {
       const dateStr = format(holiday.getDate().greg(), "yyyy-MM-dd");
@@ -65,9 +90,9 @@ export default function App() {
         >
           {startDate && endDate
             ? ` תאריכים: ${format(startDate, "dd/MM/yyyy")} → ${format(
-                endDate,
-                "dd/MM/yyyy"
-              )}`
+              endDate,
+              "dd/MM/yyyy"
+            )}`
             : "בחירת תאריכים"}
         </button>
 
@@ -114,8 +139,8 @@ export default function App() {
                   const dayType = isHoliday
                     ? HOLIDAY
                     : isWeekend
-                    ? WEEKEND
-                    : WORKDAY;
+                      ? WEEKEND
+                      : WORKDAY;
 
                   if (!tempGroup) {
                     tempGroup = {
@@ -152,8 +177,8 @@ export default function App() {
                         d.type.includes(HOLIDAY)
                           ? "text-green-600 font-medium"
                           : d.type === WEEKEND
-                          ? "text-blue-600 font-medium"
-                          : "text-gray-700"
+                            ? "text-blue-600 font-medium"
+                            : "text-gray-700"
                       }
                     >
                       {d.type}
